@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  UNIVERSITY_ADMIN
+  STUDENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum RideStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum VehicleType {
+  BIKE
+  CAR
+}
+
+model University {
+  id           String   @id @default(uuid())
+  name         String
+  shortName    String
+  emailDomain  String   @unique // e.g., "nutech.edu.pk"
+  logo         String?
+  location     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  users        User[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  name         String
+  gender       Gender
+  department   String?
+  role         Role     @default(STUDENT)
+  avatar       String?
+
+  universityId String
+  university   University @relation(fields: [universityId], references: [id])
+
+  // --- Aggregated Stats for Dashboards ---
+  rating       Float      @default(0)
+  totalRatings Int        @default(0)
+  co2Saved     Float      @default(0) // kg
+  fuelSaved    Float      @default(0) // Liters
+  ridesOffered Int        @default(0) // Total completed routes as driver
+  ridesTaken   Int        @default(0) // Total completed rides as passenger
+
+  // --- Relations ---
+  routesCreated    Route[]
+  rideRequests     Ride[]
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Route {
+  id             String      @id @default(uuid())
+  driverId       String
+  driver         User        @relation(fields: [driverId], references: [id])
+
+  originLat      Float
+  originLng      Float
+  originAddress  String
+
+  destLat        Float
+  destLng        Float
+  destAddress    String
+
+  // Distance in KM is crucial for calculating CO2 and Fuel savings
+  distance       Float       @default(0) 
+  stops          Json?       // Store stop points as JSON
+
+  vehicle        VehicleType
+  totalSeats     Int
+  availableSeats Int
+
+  departureTime  DateTime
+  womenOnly      Boolean     @default(false)
+  
+  // Status of the overall journey
+  status         RideStatus  @default(PENDING) 
+
+  rides          Ride[]
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model Ride {
+  id          String     @id @default(uuid())
+  routeId     String
+  route       Route      @relation(fields: [routeId], references: [id])
+
+  passengerId String
+  passenger   User       @relation(fields: [passengerId], references: [id])
+
+  status      RideStatus @default(PENDING)
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  content    String
+  read       Boolean  @default(false)
+
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  createdAt  DateTime @default(now())
+}
