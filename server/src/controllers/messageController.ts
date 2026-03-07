@@ -84,6 +84,29 @@ export const getConversations = async (
     next(error);
   }
 };
+export const deleteConversation = async (
+  req: any,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const userId = req.user.id;
+    const otherUserId = req.params.userId;
+
+    await prisma.message.deleteMany({
+      where: {
+        OR: [
+          { senderId: userId, receiverId: otherUserId },
+          { senderId: otherUserId, receiverId: userId },
+        ],
+      },
+    });
+
+    res.status(200).json({ status: "success" });
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const getMessages = async (
   req: any,

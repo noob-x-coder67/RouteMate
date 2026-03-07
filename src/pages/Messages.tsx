@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
-import { Search, Send, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useSearchParams } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
+import { Search, Send, MessageSquare, Trash2 } from "lucide-react";
 import { useNotifications } from "@/contexts/NotificationContext";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
@@ -147,7 +147,6 @@ export default function Messages() {
     fetchConversations();
   }, []);
   // After setMessages and fetchConversations, clear count for current conversation
-  
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -164,6 +163,30 @@ export default function Messages() {
         c.userId === conv.userId ? { ...c, unreadCount: 0 } : c,
       ),
     );
+  };
+  // delete conversation
+  const handleDeleteConversation = async (userId: string) => {
+    if (!confirm("Delete this conversation?")) return;
+    try {
+      const res = await fetch(`${API_URL}/messages/${userId}`, {
+        method: "DELETE",
+        headers,
+      });
+      if (!res.ok) throw new Error("Failed to delete");
+      setConversations((prev) => prev.filter((c) => c.userId !== userId));
+      if (selectedUserId === userId) {
+        setSelectedUserId(null);
+        setSelectedUser(null);
+        setMessages([]);
+      }
+      toast({ title: "Conversation deleted" });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSend = async () => {
@@ -207,10 +230,16 @@ export default function Messages() {
 
   return (
     <Layout showFooter={false}>
-      <div className="container py-6 h-[calc(100vh-4rem)]">
-        <div className="grid md:grid-cols-3 gap-4 h-full">
+      <div
+        className="container py-6"
+        style={{ height: "calc(100vh - 4rem)", overflow: "hidden" }}
+      >
+        <div
+          className="grid md:grid-cols-3 gap-4 h-full"
+          style={{ maxHeight: "100%" }}
+        >
           {/* Contacts */}
-          <Card className="md:col-span-1 flex flex-col">
+          <Card className="md:col-span-1 flex flex-col overflow-hidden">
             <div className="p-4 border-b">
               <h2 className="font-semibold mb-3">Messages</h2>
               <div className="relative">
@@ -240,28 +269,43 @@ export default function Messages() {
                 filteredConvs.map((conv) => (
                   <div
                     key={conv.userId}
-                    onClick={() => handleSelectConversation(conv)}
                     className={cn(
-                      "flex items-center gap-3 p-4 cursor-pointer hover:bg-muted transition-colors border-b",
+                      "flex items-center gap-3 p-4 cursor-pointer hover:bg-muted transition-colors border-b group",
                       selectedUserId === conv.userId && "bg-muted",
                     )}
                   >
-                    <Avatar>
-                      <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                        {getInitials(conv.user?.name || "?")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{conv.user?.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {conv.lastMessage}
-                      </p>
-                    </div>
-                    {conv.unreadCount > 0 && (
-                      <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
-                        {conv.unreadCount}
+                    <div
+                      className="flex-1 flex items-center gap-3"
+                      onClick={() => handleSelectConversation(conv)}
+                    >
+                      <Avatar>
+                        <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                          {getInitials(conv.user?.name || "?")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">
+                          {conv.user?.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {conv.lastMessage}
+                        </p>
                       </div>
-                    )}
+                      {conv.unreadCount > 0 && (
+                        <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+                          {conv.unreadCount}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteConversation(conv.userId);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 p-1 rounded transition-opacity"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 ))
               )}
@@ -269,7 +313,7 @@ export default function Messages() {
           </Card>
 
           {/* Chat */}
-          <Card className="md:col-span-2 flex flex-col">
+          <Card className="md:col-span-2 flex flex-col overflow-hidden">
             {selectedUser ? (
               <>
                 <div className="p-4 border-b flex items-center gap-3">
@@ -285,7 +329,7 @@ export default function Messages() {
                     </p>
                   </div>
                 </div>
-                <ScrollArea className="flex-1 p-4">
+                <ScrollArea className="flex-1 p-4 h-0">
                   <div className="space-y-4">
                     {messages.map((msg) => (
                       <div
